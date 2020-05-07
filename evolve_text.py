@@ -91,6 +91,38 @@ class Message(list):
 # TODO: Implement levenshtein_distance function (see Day 9 in-class exercises)
 # HINT: Now would be a great time to implement memoization if you haven't.
 
+memo = {}
+
+def levenshtein_distance(m, g):
+    """Return the Levenshtein distance between a message string and a goal_text
+    string. In other words, calculate the minimum number of single-charactor edits
+    required to change one word into another.
+
+    Source: https://www.python-course.eu/levenshtein_distance.php
+    """
+    if m == "":
+        return len(g)
+    if g == "":
+        return len(m)
+    if m[-1] == g[-1]:
+        cost = 0
+    else:
+        cost = 1
+
+    i1 = (m[:-1], g)
+    if not i1 in memo:
+        memo[i1] = levenshtein_distance(*i1)
+    i2 = (m, g[:-1])
+    if not i2 in memo:
+        memo[i2] = levenshtein_distance(*i2)
+    i3 = (m[:-1], g[:-1])
+    if not i3 in memo:
+        memo[i3] = levenshtein_distance(*i3)
+    res = min([memo[i1]+1, memo[i2]+1, memo[i3]+cost])
+
+    return res
+
+
 def evaluate_text(message, goal_text, verbose=VERBOSE):
     """Given a Message and a goal_text string, return the Levenshtein distance
     between the Message and the goal_text as a length 1 tuple.
@@ -100,6 +132,25 @@ def evaluate_text(message, goal_text, verbose=VERBOSE):
     if verbose:
         print("{msg!s}\t[Distance: {dst!s}]".format(msg=message, dst=distance))
     return (distance, )     # Length 1 tuple, required by DEAP
+
+
+def mate_text(parent1, parent2):
+    """Combines pieces of the genotypes of two parent Messages to produce
+    offspring.
+
+    Example:
+    >>> parent1 = "ABCDEF"
+    >>> parent2 = "UVWXYZ"
+    >>> print(mate_text(parent1, parent2))
+    ("ABWXYF", "UVCDEZ")
+    """
+    ind1 = random.randint(0, len(parent1)-2)
+    ind2 = random.randint(ind1+1, len(parent1)-1)
+
+    offspring1 = parent1[:ind1] + parent2[ind1:ind2] + parent1[ind2:]
+    offspring2 = parent2[:ind1] + parent1[ind1:ind2] + parent2[ind2:]
+
+    return (offspring1, offspring2)
 
 
 def mutate_text(message, prob_ins=0.05, prob_del=0.05, prob_sub=0.05):
@@ -114,11 +165,22 @@ def mutate_text(message, prob_ins=0.05, prob_del=0.05, prob_sub=0.05):
                         (legal) character
     """
 
+    # TODO: Implement insertion-type mutation
     if random.random() < prob_ins:
-        # TODO: Implement insertion-type mutation
-        pass
+        ind = random.randint(0, len(message)-1)
+        char = random.choice(VALID_CHARS)
+        message.insert(ind, char)
 
     # TODO: Also implement deletion and substitution mutations
+    if random.random() < prob_del:
+        ind = random.randint(0, len(message)-1)
+        message.pop(ind)
+
+    if random.random() < prob_sub:
+        ind = random.randint(0, len(message)-1)
+        char = random.choice(VALID_CHARS)
+        message[ind] = char
+
     # HINT: Message objects inherit from list, so they also inherit
     #       useful list methods
     # HINT: You probably want to use the VALID_CHARS global variable
@@ -143,7 +205,7 @@ def get_toolbox(text):
 
     # Genetic operators
     toolbox.register("evaluate", evaluate_text, goal_text=text)
-    toolbox.register("mate", tools.cxTwoPoint)
+    toolbox.register("mate", tools.cxTwoPoint) # tools.cxTwoPoint
     toolbox.register("mutate", mutate_text)
     toolbox.register("select", tools.selTournament, tournsize=3)
 
@@ -190,6 +252,8 @@ def evolve_string(text):
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
 
+    sys.stdout = open("results.txt", "w")
+
     # Get goal message from command line (optional)
     if len(sys.argv) == 1:
         # Default goal of the evolutionary algorithm if not specified.
@@ -208,3 +272,5 @@ if __name__ == "__main__":
 
     # Run evolutionary algorithm
     pop, log = evolve_string(goal)
+
+    sys.stdout.close()
